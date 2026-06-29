@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>MindAR Demo - Scan thẻ bài → 3D động</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: system-ui, sans-serif; }
+
+    /* Nút bật/tắt AR + hướng dẫn */
+    #ui {
+      position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+      z-index: 10; display: flex; gap: 12px; align-items: center;
+    }
+    button {
+      padding: 12px 20px; border: none; border-radius: 999px;
+      background: #2b6cff; color: #fff; font-size: 16px; font-weight: 600;
+      box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer;
+    }
+    button:active { transform: scale(.96); }
+
+    #hint {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 10; background: rgba(0,0,0,.6); color: #fff;
+      padding: 8px 14px; border-radius: 8px; font-size: 14px; text-align: center;
+      max-width: 90vw;
+    }
+    /* MindAR tự tạo <video> + <canvas> chiếm toàn màn hình */
+  </style>
+
+  <!--
+    Map module: dùng đúng 1 phiên bản three cho cả Three.js lẫn MindAR
+    để tránh xung đột (rất quan trọng).
+  -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+      "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="hint">Hướng camera vào thẻ bài để bắt đầu. Nghiêng/xoay thẻ để xem các mặt của mô hình 3D.</div>
+  <div id="ui">
+    <button id="startBtn">▶️ Bật AR</button>
+    <button id="stopBtn" style="display:none; background:#666;">⏹ Tắt</button>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { MindARThree } from 'mindar-image-three';
+
+    // ====== CẤU HÌNH ASSET ======
+    // 1) File .mind = "vân tay" của ảnh thẻ. Đây là thẻ MẪU của MindAR.
+    //    Ảnh để in/scan: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.png
+    //    -> Thay bằng ./targets.mind của bạn sau khi compile thẻ riêng.
+    const TARGET_MIND = 'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind';
+
+    // 2) Model 3D có animation (Flamingo vỗ cánh - asset mẫu của Three.js).
+    //    -> Thay bằng ./model.glb của bạn (file .glb có sẵn animation).
+    const MODEL_GLB = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/models/gltf/Flamingo.glb';
+
+    let mindarThree = null;
+    let mixer = null;
+    const clock = new THREE.Clock();
+
+    async function startAR() {
+      mindarThree = new MindARThree({
+        container: document.body,
+        imageTargetSrc: TARGET_MIND,
+        // uiScanning / uiLoading mặc định đã có; tắt nếu muốn UI riêng:
+        // uiScanning: false, uiLoading: false,
+      });
+
+      const { renderer, scene, camera } = mindarThree;
+
+      // Ánh sáng để model không bị tối
+      const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+      scene.add(light);
+      const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+      dir.position.set(1, 1, 1);
+      scene.add(dir);
+
+      // Anchor index 0 = thẻ bài thứ nhất (mặt trước).
+      // Mọi object thêm vào anchor.group sẽ BÁM THEO pose của thẻ:
+      // nghiêng/xoay thẻ thật -> model nghiêng/xoay theo -> lộ các mặt 3D.
+      const anchor = mindarThree.addAnchor(0);
+
+      // Tải model
+      const loader = new GLTFLoader();
+      const gltf = await new Promise((res, rej) =>
+        loader.load(MODEL_GLB, res, undefined, rej)
+      );
+
+      const model = gltf.scene;
+      // Căn chỉnh cho vừa thẻ — chỉnh các số này theo model của bạn
+      model.scale.set(0.01, 0.01, 0.01);
+      model.position.set(0, 0, 0.1);
+      model.rotation.set(0, 0, 0);
+      anchor.group.add(model);
+
+      // Chạy animation có sẵn trong file glb
+      if (gltf.animations && gltf.animations.length) {
+        mixer = new THREE.AnimationMixer(model);
+        mixer.clipAction(gltf.animations[0]).play();
+      }
+
+      // (tuỳ chọn) biết khi nào thấy/mất thẻ
+      anchor.onTargetFound = () => console.log('✅ Tìm thấy thẻ');
+      anchor.onTargetLost  = () => console.log('❌ Mất thẻ');
+
+      await mindarThree.start(); // xin quyền camera + bắt đầu track
+
+      renderer.setAnimationLoop(() => {
+        if (mixer) mixer.update(clock.getDelta());
+        renderer.render(scene, camera);
+      });
+
+      document.getElementById('startBtn').style.display = 'none';
+      document.getElementById('stopBtn').style.display = 'inline-block';
+    }
+
+    function stopAR() {
+      if (!mindarThree) return;
+      mindarThree.renderer.setAnimationLoop(null);
+      mindarThree.stop();
+      mindarThree = null;
+      mixer = null;
+      document.getElementById('startBtn').style.display = 'inline-block';
+      document.getElementById('stopBtn').style.display = 'none';
+    }
+
+    document.getElementById('startBtn').addEventListener('click', () =>
+      startAR().catch(err => { alert('Lỗi khởi động AR: ' + err.message); console.error(err); })
+    );
+    document.getElementById('stopBtn').addEventListener('click', stopAR);
+  </script>
+</body>
+</html>
