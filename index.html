@@ -59,11 +59,11 @@
     // 1) File .mind = "vân tay" của ảnh thẻ. Đây là thẻ MẪU của MindAR.
     //    Ảnh để in/scan: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.png
     //    -> Thay bằng ./targets.mind của bạn sau khi compile thẻ riêng.
-    const TARGET_MIND = 'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind';
+    const TARGET_MIND = './targets.mind'//'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/image-tracking/assets/card-example/card.mind';
 
     // 2) Model 3D có animation (Flamingo vỗ cánh - asset mẫu của Three.js).
     //    -> Thay bằng ./model.glb của bạn (file .glb có sẵn animation).
-    const MODEL_GLB = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/Flamingo.glb';
+    const MODEL_GLB =  './model.glb' //'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/Flamingo.glb';
 
     let mindarThree = null;
     let mixer = null;
